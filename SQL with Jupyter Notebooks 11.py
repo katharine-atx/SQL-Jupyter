@@ -14,7 +14,7 @@
 # There are 11 values (including 'None').
 %sql SELECT DISTINCT dimension FROM dogs;
 
-# Preliminary query to sum tests completed for each dog...
+# Preliminary query to sum tests completed for each dog, with dimension listed...
 %%sql
 SELECT COUNT(ct.dog_guid) AS CompleteTests, d.dog_guid, d.dimension
 FROM dogs d LEFT JOIN complete_tests ct ON d.dog_guid = ct.dog_guid 
@@ -36,6 +36,112 @@ FROM (
 GROUP BY DogTests.dimension
 ORDER BY AvgTestsComplete DESC;
 
+# There were blank entries with NULL values excluded - confirming
+# there are 92 unique dogs with a blank (not NULL) dimension value:
+%%sql
+SELECT (
+    SELECT CASE 
+    WHEN dimension = '' THEN 'blank'
+    WHEN dimension IS NULL THEN 'NULL'
+    ELSE 'Other'
+    END) AS Dim, 
+    COUNT(DISTINCT dog_guid) AS DogCount
+FROM dogs
+GROUP BY Dim
+ORDER BY DogCount DESC;
+
+# Taking a closer look at those 92 records...
+# These dogs all completed less than 20 tests, so wouldn't be 
+# assigned a dimension. These should be treated the same as 
+# NULL dimension values.
+%%sql
+SELECT d.*, COUNT(ct.dog_guid) AS CompleteTests
+FROM dogs d LEFT join complete_tests ct ON d.dog_guid = ct.dog_guid
+WHERE dimension = ''
+GROUP BY d.dog_guid
+ORDER BY CompleteTests DESC;
+
+# Summarizing average tests by dimension, excluding the 92 records
+# and keeping just 0 or NULL value records for the "exclude" field
+# supplied by Dognition (exclude=1 indicates testing records)...
+# This changes the outcome a bit: "Ace" is the dimension with the
+# greatest average tests completed, "Stargazer" has the least. 
+# However, there is not a large difference across dimensions.
+%%sql
+SELECT DogTests.dimension, AVG(DogTests.CompleteTests) AS AvgTestsComplete
+FROM (
+	SELECT COUNT(ct.dog_guid) AS CompleteTests, d.dog_guid, d.dimension, d.exclude
+	FROM dogs d LEFT JOIN complete_tests ct ON d.dog_guid = ct.dog_guid 
+	WHERE dimension IS NOT NULL AND dimension != ''
+	GROUP BY d.dog_guid
+	) AS DogTests
+WHERE DogTests.exclude = 0 OR DogTests.exclude IS NULL
+GROUP BY DogTests.dimension
+ORDER BY AvgTestsComplete DESC;
+
+# So, investigating a 2nd factor: Dog Breed Group...
+# There are 7 breed groups, but also NULL (None) and blank values.
+%%sql
+SELECT breed_group, COUNT(dog_guid)
+FROM dogs
+GROUP BY breed_group;
+
+# Taking a look at the 16K+ NULL value records. These appear to have
+# a breed value (most are "Mixed" of some variety), likely why they haven't 
+# been assigned a breed group value.
+%%sql
+SELECT d.dog_guid, d.breed, d.weight, d.exclude, MIN(ct.created_at), MAX(ct.updated_at), 
+    COUNT(ct.created_at) AS CompleteTests
+FROM dogs d LEFT JOIN complete_tests ct ON d.dog_guid = ct.dog_guid
+WHERE d.breed_group IS NULL
+GROUP BY d.dog_guid
+LIMIT 100;
+
+# Similarly to the summary by dimension, looking at average tests completed
+# by breed group and omitting dogs with <1 complete test.
+# "Herding" and "Sporting" are the highest and average 2 more tests 
+# completed than the lowest breed group, "Toy".
+%%sql
+SELECT DogTests.breed_group, AVG(DogTests.CompleteTests) AS AvgTestsComplete,
+	COUNT(DogTests.dog_guid) AS DogCount
+FROM (
+	SELECT COUNT(ct.dog_guid) AS CompleteTests, d.dog_guid, d.breed_group, d.exclude
+	FROM dogs d LEFT JOIN complete_tests ct ON d.dog_guid = ct.dog_guid 
+	GROUP BY d.dog_guid
+	HAVING CompleteTests > 0
+	) AS DogTests
+WHERE DogTests.exclude = 0 OR DogTests.exclude IS NULL
+GROUP BY DogTests.breed_group
+ORDER BY AvgTestsComplete DESC;
+
+# Looking also at the breed_type field...
+# There are 4 breed types and no NULL values:
+%%sql
+SELECT breed_type, COUNT(dog_guid)
+FROM dogs
+GROUP BY breed_type;
+
+# Looking at average tests by breed type (similarly to breed group)...
+# Little difference - approx. 0.5 more tests on average for highest v. lowest.
+%%sql
+SELECT DogTests.breed_type, AVG(DogTests.CompleteTests) AS AvgTestsComplete,
+	COUNT(DogTests.dog_guid) AS DogCount
+FROM (
+	SELECT COUNT(ct.dog_guid) AS CompleteTests, d.dog_guid, d.breed_type, d.exclude
+	FROM dogs d LEFT JOIN complete_tests ct ON d.dog_guid = ct.dog_guid 
+	GROUP BY d.dog_guid
+	HAVING CompleteTests > 0
+	) AS DogTests
+WHERE DogTests.exclude = 0 OR DogTests.exclude IS NULL
+GROUP BY DogTests.breed_type
+ORDER BY AvgTestsComplete DESC;
+
+# Factor 3:
+# Let's isolate pure breed dogs and categorize by whether or not they 
+# are neutered (hypothesis is that owners may be more interested in
+# learning about the characteristics of these dogs via completing tests)...
+
+# Isolating pure breed type...
 
 
 
