@@ -124,16 +124,19 @@ GROUP BY breed_type;
 # Looking at average tests by breed type (similarly to breed group)...
 # Little difference - approx. 0.5 more tests on average for highest v. lowest.
 %%sql
-SELECT DogTests.breed_type, AVG(DogTests.CompleteTests) AS AvgTestsComplete,
+SELECT DogTests.PureBreed, AVG(DogTests.CompleteTests) AS AvgTestsComplete,
 	COUNT(DogTests.dog_guid) AS DogCount
 FROM (
-	SELECT COUNT(ct.dog_guid) AS CompleteTests, d.dog_guid, d.breed_type, d.exclude
+	SELECT COUNT(ct.dog_guid) AS CompleteTests, d.dog_guid, d.exclude,
+		CASE WHEN d.breed_type = 'Pure Breed' THEN 'Pure Breed'
+		ELSE 'Other'
+		END AS PureBreed
 	FROM dogs d LEFT JOIN complete_tests ct ON d.dog_guid = ct.dog_guid 
 	GROUP BY d.dog_guid
 	HAVING CompleteTests > 0
 	) AS DogTests
 WHERE DogTests.exclude = 0 OR DogTests.exclude IS NULL
-GROUP BY DogTests.breed_type
+GROUP BY DogTests.PureBreed
 ORDER BY AvgTestsComplete DESC;
 
 # Factor 3:
@@ -141,7 +144,49 @@ ORDER BY AvgTestsComplete DESC;
 # are neutered (hypothesis is that owners may be more interested in
 # learning about the characteristics of these dogs via completing tests)...
 
-# Isolating pure breed type...
+# Isolating pure breed type and adding dog_fixed field...
+# Surprisingly, the results show the opposite of what was expected, that
+# neutered dogs (pure breed or not) complete 1-2 more tests on average.
+%%sql
+SELECT DogTests.PureBreed, DogTests.dog_fixed, AVG(DogTests.CompleteTests) AS AvgTestsComplete,
+	COUNT(DogTests.dog_guid) AS DogCount
+FROM (
+	SELECT COUNT(ct.dog_guid) AS CompleteTests, d.dog_guid, d.exclude, d.dog_fixed
+		CASE WHEN d.breed_type = 'Pure Breed' THEN 'Pure Breed'
+		ELSE 'Other'
+		END AS PureBreed
+	FROM dogs d LEFT JOIN complete_tests ct ON d.dog_guid = ct.dog_guid 
+	GROUP BY d.dog_guid
+	HAVING CompleteTests > 0
+	) AS DogTests
+WHERE DogTests.exclude = 0 OR DogTests.exclude IS NULL
+GROUP BY DogTests.PureBreed, DogTests.dog_fixed
+ORDER BY AvgTestsComplete DESC;
 
+# Based on averages, breed_group seems like the most promising factor but let's 
+# consider whether outliers are playing a disproportionate role...
+
+# Note, average metrics were used here when the median would be more ideal:
+# See: https://www.periscopedata.com/blog/medians-in-sql.html
+# One way to detect if the averages are impacted greatly by outliers is to include
+# a standard deviation field for each average metric with STDDEV:
+
+# Including a standard deviation calculation for breed group...
+# Here the coefficients of variation (stddev / mean) are over 70%, not great.
+%%sql
+SELECT DogTests.breed_group, AVG(DogTests.CompleteTests) AS AvgTestsComplete,
+	STDDEV(DogTests.CompleteTests) AS StdDev, COUNT(DogTests.dog_guid) AS DogCount
+FROM (
+	SELECT COUNT(ct.dog_guid) AS CompleteTests, d.dog_guid, d.breed_group, d.exclude
+	FROM dogs d LEFT JOIN complete_tests ct ON d.dog_guid = ct.dog_guid 
+	GROUP BY d.dog_guid
+	HAVING CompleteTests > 0
+	) AS DogTests
+WHERE DogTests.exclude = 0 OR DogTests.exclude IS NULL
+GROUP BY DogTests.breed_group
+ORDER BY AvgTestsComplete DESC;
+
+# Next steps would be to evaluate the median values and do more work to remove outliers, 
+# i.e. in Tableau or other tool.
 
 
