@@ -43,25 +43,11 @@ WHERE user_guid IS NOT NULL AND country IS NOT NULL
 	AND country != 'N/A'
 GROUP BY US_flag;
 
-# Nested IF to break out a third category for "N/A" country records:
+# Another option for the above is CASE WHEN:
 %%sql
-SELECT IF( 
-	country = 'US', 'United States', IF(
-		country = 'N/A', 'N/A', 'Other')
-	) AS US_flag, 
-	count(DISTINCT user_guid) AS Users
-FROM users
-WHERE user_guid IS NOT NULL AND country IS NOT NULL
-GROUP BY US_flag
-ORDER BY Users DESC;
-
-# Another way to "fill" a flag column is with CASE WHEN. 
-# Same output as above:
-%%sql
-SELECT CASE country 
-	WHEN 'US' THEN 'United States'
+SELECT CASE country WHEN 'US' THEN 'United States'
 	WHEN 'N/A' THEN 'N/A'
-	ELSE 'Other'
+	ELSE 'OTHER'
 	END AS US_Flag,
 	COUNT(DISTINCT user_guid) AS Users
 FROM users
@@ -69,17 +55,7 @@ WHERE country IS NOT NULL
 GROUP BY US_Flag
 ORDER BY Users DESC;
 
-# Note: ELSE is optional and defaults to NULL.
-# 'Neutered' outputs NULL values where dog_fixed column is NULL:
-%%sql
-SELECT dog_guid, dog_fixed, CASE dog_fixed
-    WHEN 1 THEN 'Neutered'
-    WHEN 0 THEN 'Not Neutered'
-    END AS Neutered
-FROM dogs
-LIMIT 20;
-
-# Adding a flag description field for 'Exclude' column...
+# Another comparison: IF v. CASE WHEN...
 %%sql
 SELECT dog_guid, exclude, CASE exclude 
     WHEN 1 THEN 'Exclude'
@@ -87,7 +63,7 @@ SELECT dog_guid, exclude, CASE exclude
     END AS exclude_flag
 FROM dogs
 LIMIT 20;
-# Same as above, using an IF statement v. CASE WHEN:
+
 %%sql
 SELECT dog_guid, exclude, IF(
     exclude = 1, 'Exclude', 'Keep'
@@ -95,7 +71,8 @@ SELECT dog_guid, exclude, IF(
 FROM dogs
 LIMIT 20;
 
-# Creating a dog weight category field...
+# CASE WHEN to define categories of dog size using the weight field:
+# Note: ELSE is optional for CASE WHEN and defaults to NULL.
 %%sql
 SELECT dog_guid, weight, CASE
 	WHEN weight>=1 AND weight<=10 THEN 'Very Small'
@@ -107,24 +84,25 @@ SELECT dog_guid, weight, CASE
 FROM dogs
 LIMIT 20;
 
-# Note: Order of operations is NOT > AND > OR when used together.
-# For example - the () within the CASE WHEN are necessary here:
+# Note: order of operations in NOT > AND > ORDER
+# The () in the CASE WHEN are necessary here:
+%%sql
 SELECT COUNT(DISTINCT dog_guid), 
 CASE WHEN exclude!='1' AND (breed_group='Sporting' OR breed_group='Herding') THEN "group 1"
      ELSE "everything else"
      END AS group_name
 FROM dogs
-GROUP BY group_name;
+GROUP BY group_name
 
-# Summarizing the number of completed tests per dog...
+# Summarizing tests completed by each dog, with breed type:
 %%sql
 SELECT d.dog_guid, d.breed_type, COUNT(DISTINCT test_name) AS TestsComplete
 FROM dogs d LEFT JOIN complete_tests ct ON d.dog_guid = ct.dog_guid
 GROUP BY d.dog_guid, d.breed_type
 ORDER BY TestsComplete DESC
 LIMIT 50;
-	
-# Outputting the average for each breed group...
+
+# Now looking at the average test completed across breed types by nesting..
 %%sql
 SELECT TestsPerDog.breed_type, AVG(TestsPerDog.TestsComplete) AS AvgTestsComplete
 FROM (
@@ -133,9 +111,10 @@ FROM (
 	GROUP BY d.dog_guid, d.breed_type
 	LIMIT 1000) AS TestsPerDog
 GROUP BY TestsPerDog.breed_type
-ORDER BY AvgTestsComplete DESC;
+ORDER BY AvgTestsComplete DESC
+LIMIT 15;
 
-# Reporting on users by US top regions v. "other"...
+# Summarizing user count by top US regions...
 %%sql
 SELECT CASE
     WHEN state IN ('NY', 'NJ') THEN 'New York/New Jersey'
@@ -147,10 +126,3 @@ SELECT CASE
 FROM users
 WHERE country = 'US' AND state IS NOT NULL
 GROUP BY Region;
-
-
-
-
-
-
-
