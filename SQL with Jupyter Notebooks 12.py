@@ -82,5 +82,33 @@ ORDER BY nYear, nDay;
 # Looking at location factors...
 # It's evident from the previous query that the bulk of users are in the continental U.S. 
 
-# Which states and countries have the most Dognition users? 
+# U.S. states with the most Dognition users...
+# California has by far the most users (greater than 2x NY).
+%%sql
+SELECT uc.state, COUNT(uc.user_guid) AS UserCount 
+FROM (
+	SELECT DISTINCT u.user_guid, u.state
+	FROM dogs d JOIN users u ON d.user_guid = u.user_guid
+	WHERE (d.exclude = 0 OR d.exclude IS NULL) AND (u.exclude = 0 OR u.exclude IS NULL)
+		AND u.country = 'US'
+	) uc
+GROUP BY uc.state
+ORDER BY UserCount DESC
+LIMIT 5;
+
+# Countries with the most Dognition users...
+# There are a lot of NULL and 'N/A' country records - excluding these:
+# There are several hundred users from other English-speaking countries (Canada, Australia, UK).
+%%sql
+SELECT uc.country, COUNT(uc.user_guid) AS UserCount 
+FROM (
+	SELECT DISTINCT u.user_guid, u.country
+	FROM dogs d JOIN users u ON d.user_guid = u.user_guid
+	WHERE (d.exclude = 0 OR d.exclude IS NULL) AND (u.exclude = 0 OR u.exclude IS NULL)
+		AND u.country IS NOT NULL AND u.country != 'N/A'
+	) uc
+GROUP BY uc.country
+ORDER BY UserCount DESC
+LIMIT 10;
+	
 
